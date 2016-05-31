@@ -72,7 +72,6 @@ class SiteRepository extends \Gitonomy\Git\Repository
 
         // load trees
         $masterTree = new Tree($this, $masterCommit);
-        // $masterTree->dump(false, '$masterTree');
 
         $layerTrees = $layerCommits = [
             'local' => null,
@@ -88,8 +87,6 @@ class SiteRepository extends \Gitonomy\Git\Repository
 
             $layerTrees[$layerName] = new Tree($this, $layerCommit);
             $layerCommits[$layerName] = $layerCommit;
-
-            // $layerTree->dump(false, $layerName);
         }
 
 
@@ -143,7 +140,7 @@ class SiteRepository extends \Gitonomy\Git\Repository
                     count($commit['changes']),
                     $commit['index']
                 );
-// \Debug::dumpVar($layerCommits, false, '$layerCommits before');
+
 
                 // write new commit for layer
                 $layerTree->write();
@@ -157,7 +154,6 @@ class SiteRepository extends \Gitonomy\Git\Repository
                 ]);
 
                 $layerCommits[$commit['layer']] = $layerCommit;
-// \Debug::dumpVar($layerCommits, false, '$layerCommits after');
 
 
                 // write new commit for master
@@ -178,17 +174,9 @@ class SiteRepository extends \Gitonomy\Git\Repository
 
                 $masterIndex = $commit['index'];
 
-                // $masterTree->dump(false, 'after: $masterTree');
-                // $layerTree->dump(false, 'after: $layerTree');
-                // \Debug::dumpVar([
-                //     '$masterIndex' => $masterIndex
-                // ]);
-
 
                 // dequeue commit
                 $commit = null;
-
-                // if ($counter++ >= 20) die('debug');
 
 
                 // break out of loop now if this was the last iteration to flush the last commit
@@ -289,9 +277,6 @@ class SiteRepository extends \Gitonomy\Git\Repository
      */
     protected function writeCommit($treeSha, array $options = [])
     {
-        // \Debug::dumpVar($options, false, "writeCommit($treeSha)");
-
-
         // build environment vars for commit
         $env = [];
 
