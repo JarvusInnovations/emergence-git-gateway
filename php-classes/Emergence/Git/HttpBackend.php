@@ -5,14 +5,25 @@ namespace Emergence\Git;
 use Site;
 use Emergence\People\User;
 use Sabre\HTTP\BasicAuth;
+use Gitonomy\Git\Repository;
+
 
 class HttpBackend extends \RequestHandler
 {
+    /**
+     * Require and cache developer authentication in a git-friendly way
+     */
+    protected static $authenticatedUser;
+
     public static function requireAuthentication()
     {
+        if (static::$authenticatedUser) {
+            return static::$authenticatedUser;
+        }
+
         // authenticate developer
-        if ($GLOBALS['Session']->hasAccountLevel('Developer')) {
-            $User = $GLOBALS['Session']->Person;
+        if (!$GLOBALS['Session']->hasAccountLevel('Developer')) {
+            static::$authenticatedUser = $GLOBALS['Session']->Person;
         } else {
             $authEngine = new BasicAuth();
             $authEngine->setRealm('Develop '.Site::$title);
@@ -20,27 +31,52 @@ class HttpBackend extends \RequestHandler
 
             // try to get user
             $userClass = User::$defaultClass;
-            $User = $userClass::getByLogin($authUserPass[0], $authUserPass[1]);
+            static::$authenticatedUser = $userClass::getByLogin($authUserPass[0], $authUserPass[1]);
 
             // send auth request if login is inadiquate
-            if (!$User || !$User->hasAccountLevel('Developer')) {
+            if (!static::$authenticatedUser || !static::$authenticatedUser->hasAccountLevel('Developer')) {
                 $authEngine->requireLogin();
                 die("You must login using a ".Site::getConfig('primary_hostname')." account with Developer access\n");
             }
         }
+
+        return static::$authenticatedUser;
     }
 
+
+    /**
+     * Default route synchronizes and serves up primary site repository
+     */
     public static function handleRequest()
     {
         static::requireAuthentication();
 
 
-        // initialize git repository
-        $repoPath = Site::$rootPath . '/site-data/site.git';
+        set_time_limit(0);
 
-        if (!is_dir($repoPath)) {
-            exec("git init --bare $repoPath");
-        }
+
+        // get site repository and synchronize
+        $repo = new SiteRepository();
+        $repo->synchronize();
+
+
+        // continue with generic repository request
+        return static::handleRepositoryRequest($repo);
+    }
+
+
+    /**
+     * Handle a git HTTP backend request for given repository
+     *
+     * ## TODO
+     * - fire events
+     */
+    public static function handleRepositoryRequest(Repository $repo)
+    {
+        static::requireAuthentication();
+
+
+        set_time_limit(0);
 
 
         // create git-http-backend process
@@ -56,14 +92,14 @@ class HttpBackend extends \RequestHandler
             null,
             [
                 'GIT_HTTP_EXPORT_ALL' => 1,
-                'GIT_PROJECT_ROOT' => $repoPath,
+
+                'GIT_PROJECT_ROOT' => $repo->getGitDir(),
                 'PATH_INFO' => '/' . implode('/', static::getPath()),
-                'REMOTE_USER' => $_SERVER['REMOTE_USER'],
-                'REMOTE_ADDR' => $_SERVER['REMOTE_ADDR'],
+
                 'CONTENT_TYPE' => $_SERVER['CONTENT_TYPE'],
                 'QUERY_STRING' => $_SERVER['QUERY_STRING'],
                 'REQUEST_METHOD' => $_SERVER['REQUEST_METHOD'],
-                'HTTP_ACCEPT', $_SERVER['HTTP_ACCEPT']
+                'HTTP_ACCEPT' => $_SERVER['HTTP_ACCEPT']
             ]
         );
 
