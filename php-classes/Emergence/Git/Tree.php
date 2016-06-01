@@ -74,6 +74,12 @@ class Tree
     }
 
 
+    public function hasContent($path)
+    {
+        return (boolean)$this->getNodeRef($path);
+    }
+
+
     public function write()
     {
         $this->writtenHash = $this->writeTree($this->root);

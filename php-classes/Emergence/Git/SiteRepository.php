@@ -70,13 +70,18 @@ class SiteRepository extends \Gitonomy\Git\Repository
         }
 
 
-        // load trees
+        // load trees and layers
         $masterTree = new Tree($this, $masterCommit);
 
-        $layerTrees = $layerCommits = [
+        $layerTrees = $layerCommits = $layerOrders = [
             'local' => null,
             'parent' => null
         ];
+
+        $i = 0;
+        foreach ($layerOrders AS &$order) {
+            $order = $i++;
+        }
 
         foreach ($layerTrees AS $layerName => $layerTree) {
             if ($masterCommit && $refs->hasBranch($layerName)) {
@@ -114,6 +119,7 @@ class SiteRepository extends \Gitonomy\Git\Repository
             ) {
                 $layerTree = $layerTrees[$commit['layer']];
                 $layerCommit = $layerCommits[$commit['layer']];
+                $layerOrder = $layerOrders[$commit['layer']];
 
 
                 // get author
@@ -122,6 +128,17 @@ class SiteRepository extends \Gitonomy\Git\Repository
 
                 // write changes to master and layer trees
                 foreach ($commit['changes'] AS $changePath => $changeContent) {
+
+                    // skip change if a higher-priority layer has content
+                    foreach ($layerOrders AS $otherLayerName => $otherLayerOrder) {
+                        if (
+                            ($otherLayerOrder > $layerOrder) &&
+                            ($layerTrees[$otherLayerName]->hasContent($changePath))
+                        ) {
+                            continue 2;
+                        }
+                    }
+
                     if ($changeContent) {
                         $contentPath = SiteFile::getRealPathByID($changeContent);
 

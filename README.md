@@ -4,7 +4,7 @@
 
 ### Short-term
 
-- [ ] prevent updates to parent layer from overriding local layer content
+- [X] prevent updates to parent layer from overriding local layer content
 - [ ] block pushing (temporarily)
 - [ ] generate smarter commit messages
   - prefix `master` commits with name of layer?
@@ -17,3 +17,4 @@
 - [ ] track modification and cache hashes within trees
 - [ ] allow pushing to `local` and `master` branches
 - [ ] fire events for HTTP activity and git hooks
+- [ ] record overridden changes in branch and nullify on merge into master
