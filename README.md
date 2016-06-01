@@ -18,3 +18,4 @@
 - [ ] allow pushing to `local` and `master` branches
 - [ ] fire events for HTTP activity and git hooks
 - [ ] record overridden changes in branch and nullify on merge into master
+- [ ] write each change to cached trees directly instead of aggregating in commit first
