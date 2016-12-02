@@ -87,7 +87,7 @@ class Tree
     }
 
 
-    public function read($hash)
+    public function read($treeish)
     {
         if (!$this->repository) {
             throw new \Exception('must set repository before reading');
@@ -95,7 +95,7 @@ class Tree
         // open git-mktree process
         $pipes = [];
         $process = proc_open(
-            exec('which git') . ' ls-tree -r ' . $hash,
+            exec('which git') . ' ls-tree -r ' . $treeish,
             [
         		1 => ['pipe', 'wb'], // STDOUT
         		2 => ['pipe', 'w']  // STDERR
