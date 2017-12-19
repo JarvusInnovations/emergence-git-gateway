@@ -5,36 +5,25 @@ namespace Emergence\Git;
 use Gitonomy\Git\Repository;
 
 
-class Tree
+class Tree implements HashableInterface
 {
-    protected $repository;
-    protected $root;
-    protected $dirty;
-    protected $writtenHash;
+    use HashableTrait;
 
 
-    function __construct(Repository $repository = null, $hash = null)
+    const REMOTES_MODE_FETCH = 'fetch';
+    const REMOTES_MODE_LINK = 'link';
+    const TREE_REGEX = '/^(?<mode>[^ ]+) (?<type>[^ ]+) (?<hash>[^\t]+)\t(?<path>.*)/';
+
+
+    protected $root = [];
+    protected $remotesMode = self::REMOTES_MODE_FETCH;
+
+
+    // magic methods and property accessors
+    public function getObjectType()
     {
-        $this->repository = $repository;
-        $this->root = [];
-        $this->dirty = !$repository || !$hash || !$this->read($hash);
-        $this->writtenHash = $this->dirty ? null : $hash;
+        return 'tree';
     }
-
-
-    public function getRepository()
-    {
-        return $this->repository;
-    }
-
-
-    public function setRepository(Repository $repository)
-    {
-        $this->repository = $repository;
-        $this->dirty = true;
-        $this->writtenHash = null;
-    }
-
 
     public function getRoot()
     {
@@ -42,157 +31,191 @@ class Tree
     }
 
 
-    public function getDirty()
+    // tree manipulation API
+    public function getPath($path)
     {
-        return $this->dirty;
+        return $this->getNodeRef($path);
     }
 
-
-    public function getWrittenHash()
+    /**
+     * Set the content for a given path
+     *
+     * $content may be:
+     *
+     * - a string hash for another tree
+     * - an object implementing HashableInterface
+     * - an array of child objects
+     */
+    public function setPath($path, $content)
     {
-        return $this->writtenHash;
-    }
-
-
-    public function getHash()
-    {
-        return $this->dirty ? null : $this->writtenHash;
-    }
-
-
-    public function setContent($path, $content)
-    {
+        $this->dirty = true;
         $node =& $this->getNodeRef($path);
         $node = $content;
     }
 
-
-    public function deleteContent($path)
+    public function deletePath($path)
     {
+        $this->dirty = true;
         $node =& $this->getNodeRef($path);
         $node = null;
     }
 
-
-    public function hasContent($path)
+    public function hasPath($path)
     {
         return (boolean)$this->getNodeRef($path);
     }
 
 
+    // tree lifecycle API
     public function write()
     {
-        $this->writtenHash = $this->writeTree($this->root);
-        $this->dirty = false;
-    }
+        if ($this->dirty) {
+            $this->writtenHash = $this->writeTree($this->root);
+            $this->dirty = false;
+        }
 
+        return $this->writtenHash;
+    }
 
     public function read($hash)
     {
-        if (!$this->repository) {
-            throw new \Exception('must set repository before reading');
+        if ($this->dirty || $hash != $this->writtenHash) {
+            $this->root = [];
+            $this->loadTree($hash, $this->root);
         }
-        // open git-mktree process
-        $pipes = [];
-        $process = proc_open(
-            exec('which git') . ' ls-tree -r ' . $hash,
-            [
-        		1 => ['pipe', 'wb'], // STDOUT
-        		2 => ['pipe', 'w']  // STDERR
-            ],
-            $pipes,
-            $this->repository->getGitDir()
+
+        return true;
+    }
+
+    public function dump($return = false, $contentColumn = 40)
+    {
+        $output = sprintf(
+            "\n\ndumping tree %s#%s\n\n",
+            $this->getRepository()->getGitDir(),
+            $this->getWrittenHash() ?: ($this->getReadHash() . '*')
         );
 
+        $dumpNodes = function ($nodes, $indent = 1) use (&$dumpNodes, &$output, $contentColumn) {
+            foreach ($nodes AS $path => $node) {
+                if (
+                    is_array($node)
+                    || is_string($node)
+                    || $node instanceof static
+                    || ( $node instanceof HashableInterface && $node->getObjectType() == 'tree' )
+                ) {
+                    $path .= '/';
+                }
 
-        // check for error on STDERR and turn into exception
-        stream_set_blocking($pipes[2], false);
-        $error = stream_get_contents($pipes[2]);
-        fclose($pipes[2]);
+                $output .= str_repeat('   ', $indent);
+                $output .= $path;
+                $output .= str_repeat(is_array($node) ? ' ' : '-', $contentColumn - $indent*3 - strlen($path));
 
-        if ($error) {
-            $exitCode = proc_close($process);
-            throw new \Exception("git exited with code $exitCode: $error");
-        }
+                if (is_array($node)) {
+                    $output .= "\n";
+                    $dumpNodes($node, $indent + 1);
+                } else {
+                    if ($node instanceof self || $node instanceof File) {
+                        $node = (string)$node;
+                    } elseif (is_object($node)) {
+                        $node = get_class($node)."($node".( $node instanceof HashableInterface ? ", {$node->getRepository()->getGitDir()}, {$node->getObjectType()}, {$node->getHash()}" : '' ).')';
+                    }
 
-
-        // read tree hash from output
-        while ($line = fgets($pipes[1])) {
-            if (!preg_match('/^(?<mode>[^ ]+) (?<type>[^ ]+) (?<hash>[^\t]+)\t(?<path>.*)/', $line, $matches)) {
-                throw new \Exception("invalid tree line: $line");
+                    $output .= "$node\n";
+                }
             }
+        };
 
-            $this->setContent($matches['path'], $matches['hash']);
+        $dumpNodes($this->root);
+
+        $output .= "\n";
+
+        if ($return) {
+            return $output;
+        } else {
+            print $output;
         }
-
-        fclose($pipes[1]);
-
-
-        // clean up
-        $exitCode = proc_close($process);
-
-
-        return $exitCode == 0;
     }
 
-
-    public function dump($exit = true, $title = null)
+    public function commit($message = 'Commit tree')
     {
-        \Debug::dumpVar([
-            'repository' => ($repository = $this->getRepository()) ? $repository->getGitDir() : null,
-            'hash' => $this->getHash(),
-            'writtenHash' => $this->getWrittenHash(),
-            'dirty' => $this->getDirty(),
-            'root' => $this->getRoot()
-        ], $exit, $title);
+        return trim($this->getRepository()->run('commit-tree', [
+            '-m', $message,
+            $this->write()
+        ]));
     }
 
 
+    // internal library
     protected function &getNodeRef($path)
     {
         $path = explode('/', $path);
         $tree = &$this->root;
 
         while (($name = array_shift($path)) && count($path)) {
+            if ($name == '.') {
+                continue;
+            }
+
             $tree = &$tree[$name];
+
+            if (is_string($tree)) {
+                $tree = $this->loadTree($tree);
+            }
         }
 
         return $tree[$name];
     }
 
-
     protected function writeTree(&$tree)
     {
-        if (!$this->repository) {
-            throw new \Exception('must set repository before writing');
-        }
-
         // build tree file content
         $treeContent = '';
         foreach ($tree AS $name => &$content) {
+
             if (is_string($content)) {
-                if ($content[0] == '/') {
-                    $content = trim($this->repository->run('hash-object', ['-w', $content]));
+                $type = 'tree';
+                $hash = $content;
+            } elseif (is_array($content)) {
+                $type = 'tree';
+                $hash = $content = $this->writeTree($content);
+            } elseif ($content instanceof HashableInterface) {
+                $type = $content->getObjectType();
+                $hash = $content->getHash();
+
+                if ($this->getRepository()->getGitDir() != $content->getRepository()->getGitDir()) {
+                    if ($this->remotesMode == self::REMOTES_MODE_FETCH) {
+                        static::copyObject($content->getRepository(), $this->getRepository(), $type, $hash);
+                    } elseif ($this->remotesMode == self::REMOTES_MODE_LINK) {
+                        Alternates::addPath($this->getRepository(), $content->getRepository());
+                    } else {
+                        throw new \Exception('unhandlable remotes mode: '.$this->remotesMode);
+                    }
                 }
 
-                $treeContent .= '100644 blob '.$content."\t$name\n";
-            } elseif(is_array($content)) {
-                $treeContent .= '040000 tree '.$this->writeTree($content)."\t$name\n";
+                if ($type == 'tree') {
+                    $content = $hash;
+                }
+            } else {
+                throw new \Exception('unhandlable content for ' . $name);
             }
+
+            $mode = $type == 'blob' ? '100644' : '040000';
+
+            $treeContent .= "$mode $type $hash\t$name\n";
         }
 
 
         // open git-mktree process
         $pipes = [];
         $process = proc_open(
-            exec('which git') . ' mktree',
+            static::getGitExecutablePath() . ' mktree',
             [
         		0 => ['pipe', 'rb'], // STDIN
         		1 => ['pipe', 'wb'], // STDOUT
         		2 => ['pipe', 'w']  // STDERR
             ],
             $pipes,
-            $this->repository->getGitDir()
+            $this->getRepository()->getGitDir()
         );
 
 
@@ -222,5 +245,136 @@ class Tree
 
 
         return $hash;
+    }
+
+    protected function loadTree($hash, array &$tree = [])
+    {
+        // open git-ls-tree process
+        $pipes = [];
+        $process = proc_open(
+            static::getGitExecutablePath() . ' ls-tree ' . $hash,
+            [
+        		1 => ['pipe', 'wb'], // STDOUT
+        		2 => ['pipe', 'w']  // STDERR
+            ],
+            $pipes,
+            $this->getRepository()->getGitDir()
+        );
+
+
+        // check for error on STDERR and turn into exception
+        stream_set_blocking($pipes[2], false);
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+
+        if ($error) {
+            $exitCode = proc_close($process);
+            throw new \Exception("git exited with code $exitCode: $error");
+        }
+
+
+        // read tree hash from output
+        while ($line = fgets($pipes[1])) {
+            if (!preg_match(self::TREE_REGEX, $line, $matches)) {
+                throw new \Exception("invalid tree line: $line");
+            }
+
+            $tree[$matches['path']] = $matches['type'] == 'tree' ? $matches['hash'] : File::fromHash($this->getRepository(), $matches['hash']);
+        }
+
+        fclose($pipes[1]);
+
+
+        // clean up
+        $exitCode = proc_close($process);
+
+        if ($exitCode !== 0) {
+            throw new \Exception('git ls-tree failed with exit code ' . $exitCode);
+        }
+
+
+        return $tree;
+    }
+
+    protected static function getGitExecutablePath()
+    {
+        static $path;
+
+        if (!isset($path)) {
+            $path = exec('which git');
+        }
+
+        return $path;
+    }
+
+    /**
+     * Deep-copy a blob or tree from one repository to another
+     * TODO:
+     * - Put this somewhere else?
+     * - Stream trees like loadTree does?
+     */
+    protected static function copyObject(Repository $from, Repository $to, $type, $hash)
+    {
+        $git = static::getGitExecutablePath();
+        $gitFrom = "$git --git-dir='{$from->getGitDir()}'";
+        $gitTo = "$git --git-dir='{$to->getGitDir()}'";
+
+
+        // copy the named object
+        //printf("Copying %s %s from %s to %s\n", $type, $hash, $from->getGitDir(), $to->getGitDir());
+        $cmd = "$gitFrom cat-file $type $hash | $gitTo hash-object -w -t $type --stdin";
+
+        if (exec($cmd) != $hash) {
+            throw new Exception("Failed to copy object: $cmd");
+        }
+
+
+        // iterate over children if it's a tree
+        if ($type == 'tree') {
+            // open git-ls-tree process
+            $pipes = [];
+            $process = proc_open(
+                "$gitFrom ls-tree $hash",
+                [
+            		1 => ['pipe', 'wb'], // STDOUT
+            		2 => ['pipe', 'w']  // STDERR
+                ],
+                $pipes
+            );
+
+
+            // check for error on STDERR and turn into exception
+            stream_set_blocking($pipes[2], false);
+            $error = stream_get_contents($pipes[2]);
+            fclose($pipes[2]);
+
+            if ($error) {
+                $exitCode = proc_close($process);
+                throw new \Exception("git exited with code $exitCode: $error");
+            }
+
+
+            // read tree hash from output
+            while ($line = fgets($pipes[1])) {
+                if (!preg_match(self::TREE_REGEX, $line, $matches)) {
+                    throw new \Exception("invalid tree line: $line");
+                }
+
+                static::copyObject($from, $to, $matches['type'], $matches['hash']);
+            }
+
+            fclose($pipes[1]);
+
+
+            // clean up
+            $exitCode = proc_close($process);
+
+            if ($exitCode !== 0) {
+                throw new \Exception('git ls-tree failed with exit code ' . $exitCode);
+            }
+        }
+
+
+        return true;
     }
 }
