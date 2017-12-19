@@ -9,7 +9,7 @@ use Emergence\People\User;
 use Gitonomy\Git\Exception\ReferenceNotFoundException;
 
 
-class SiteRepository extends \Gitonomy\Git\Repository
+class SiteRepository extends Repository
 {
     public static $anonymousName = 'system';
     public static $anonymousEmail;

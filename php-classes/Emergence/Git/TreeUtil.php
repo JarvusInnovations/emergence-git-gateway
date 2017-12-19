@@ -2,8 +2,6 @@
 
 namespace Emergence\Git;
 
-use Gitonomy\Git\Repository;
-
 
 class TreeUtil
 {
