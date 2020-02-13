@@ -132,25 +132,25 @@ class SiteRepository extends Repository
                 $authorInfo = static::getPersonInfo($commit['author']);
 
                 // write changes to master and layer trees
-                foreach ($commit['changes'] as $changePath => $changeContent) {
+                foreach ($commit['changes'] as $changePath => $changeId) {
                     // skip change if a higher-priority layer has content
                     foreach ($layerOrders as $otherLayerName => $otherLayerOrder) {
                         if (
                             ($otherLayerOrder > $layerOrder) &&
-                            ($layerTrees[$otherLayerName]->hasContent($changePath))
+                            ($layerTrees[$otherLayerName]->hasPath($changePath))
                         ) {
                             continue 2;
                         }
                     }
 
-                    if ($changeContent) {
-                        $contentPath = SiteFile::getRealPathByID($changeContent);
+                    if ($changeId) {
+                        $content = File::fromFilesystemPath($this, SiteFile::getRealPathByID($changeId));
 
-                        $layerTree->setContent($changePath, $contentPath);
-                        $masterTree->setContent($changePath, $contentPath);
+                        $layerTree->setPath($changePath, $content);
+                        $masterTree->setPath($changePath, $content);
                     } else {
-                        $layerTree->deleteContent($changePath);
-                        $masterTree->deleteContent($changePath);
+                        $layerTree->deletePath($changePath);
+                        $masterTree->deletePath($changePath);
                     }
                 }
 
@@ -214,7 +214,7 @@ class SiteRepository extends Repository
             $path = $collectionInfo['path'].'/'.$row['Handle'];
 
             // update commit
-            $commit['changes'][$path] = 'Normal' == $row['Status'] ? $row['ID'] : null;
+            $commit['changes'][$path] = 'Normal' == $row['Status'] ? true : null;
             $commit['date'] = $date;
             $commit['index'] = $row['ID'];
         }
