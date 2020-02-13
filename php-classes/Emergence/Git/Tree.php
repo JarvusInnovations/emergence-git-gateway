@@ -164,7 +164,9 @@ class Tree implements HashableInterface
         // build tree file content
         $treeContent = '';
         foreach ($tree as $name => &$content) {
-            if (is_string($content)) {
+            if (!$content) {
+                continue;
+            } elseif (is_string($content)) {
                 $type = 'tree';
                 $hash = $content;
             } elseif (is_array($content)) {
