@@ -214,7 +214,7 @@ class SiteRepository extends Repository
             $path = $collectionInfo['path'].'/'.$row['Handle'];
 
             // update commit
-            $commit['changes'][$path] = 'Normal' == $row['Status'] ? true : null;
+            $commit['changes'][$path] = 'Normal' == $row['Status'] ? $row['ID'] : null;
             $commit['date'] = $date;
             $commit['index'] = $row['ID'];
         }
