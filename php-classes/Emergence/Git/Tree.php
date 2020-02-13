@@ -2,6 +2,8 @@
 
 namespace Emergence\Git;
 
+use Exception;
+
 class Tree implements HashableInterface
 {
     use HashableTrait;
