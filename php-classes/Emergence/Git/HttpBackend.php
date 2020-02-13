@@ -5,7 +5,6 @@ namespace Emergence\Git;
 use Site;
 use Emergence\People\User;
 use Sabre\HTTP\BasicAuth;
-use Gitonomy\Git\Repository;
 
 
 class HttpBackend extends \RequestHandler
