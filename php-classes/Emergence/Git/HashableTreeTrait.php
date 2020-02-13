@@ -2,13 +2,8 @@
 
 namespace Emergence\Git;
 
-
 trait HashableTreeTrait
 {
-    abstract protected function getRepository();
-    abstract protected function getHash();
-
-
     public function getPaths($options = [])
     {
         return TreeUtil::getPaths($this->getRepository(), $this->getHash(), $options);
@@ -33,4 +28,8 @@ trait HashableTreeTrait
     {
         return TreeUtil::writeToDisk($this->getRepository(), $this->getHash(), $outputPath, $path);
     }
+
+    abstract protected function getRepository();
+
+    abstract protected function getHash();
 }

@@ -2,13 +2,11 @@
 
 namespace Emergence\Git;
 
-
 class File implements HashableInterface
 {
     use HashableTrait {
         __construct as hashableTraitConstruct;
     }
-
 
     const CONTENT_HASH = 'hash';
     const CONTENT_PATH_FS = 'path-fs';
@@ -18,42 +16,11 @@ class File implements HashableInterface
     const CONTENT_CALLABLE = 'callable';
     const CONTENT_HASHABLE = 'hashable';
 
-
     protected $content;
     protected $contentMode;
 
-
-    // factories
-    public static function fromHash(Repository $repository, $hash)
-    {
-        $file = new static($repository, $hash);
-        return $file;
-    }
-
-    public static function fromContent(Repository $repository, $content)
-    {
-        $file = new static($repository);
-        $file->setContent($content);
-        return $file;
-    }
-
-    public static function fromFilesystemPath(Repository $repository, $path)
-    {
-        $file = new static($repository);
-        $file->setFilesystemPath($path);
-        return $file;
-    }
-
-    public static function fromRefPath(Repository $repository, $path)
-    {
-        $file = new static($repository);
-        $file->setRefPath($path);
-        return $file;
-    }
-
-
     // magic methods and property accessors
-    function __toString()
+    public function __toString()
     {
         return sprintf(
             '%s(%s, %s%s)',
@@ -62,6 +29,38 @@ class File implements HashableInterface
             $this->writtenHash,
             $this->dirty ? "*($this->contentMode)" : ''
         );
+    }
+
+    // factories
+    public static function fromHash(Repository $repository, $hash)
+    {
+        $file = new static($repository, $hash);
+
+        return $file;
+    }
+
+    public static function fromContent(Repository $repository, $content)
+    {
+        $file = new static($repository);
+        $file->setContent($content);
+
+        return $file;
+    }
+
+    public static function fromFilesystemPath(Repository $repository, $path)
+    {
+        $file = new static($repository);
+        $file->setFilesystemPath($path);
+
+        return $file;
+    }
+
+    public static function fromRefPath(Repository $repository, $path)
+    {
+        $file = new static($repository);
+        $file->setRefPath($path);
+
+        return $file;
     }
 
     public function getObjectType()
@@ -121,7 +120,6 @@ class File implements HashableInterface
         $this->contentMode = self::CONTENT_PATH_REF;
     }
 
-
     // tree lifecycle API
     public function write()
     {
@@ -141,7 +139,6 @@ class File implements HashableInterface
         return true;
     }
 
-
     // internal library
     protected function writeContent()
     {
@@ -152,7 +149,6 @@ class File implements HashableInterface
         if (!$this->dirty) {
             return $this->writtenHash;
         }
-
 
         // first handle content modes that don't need piping content into hash-object
         switch ($this->contentMode) {
@@ -168,28 +164,28 @@ class File implements HashableInterface
                 return $this->content->getHash();
         }
 
-
         // open hash-object process for piping
         $pipes = [];
         $process = proc_open(
-            exec('which git') . ' hash-object -w --stdin',
+            exec('which git').' hash-object -w --stdin',
             [
-        		0 => ['pipe', 'rb'], // STDIN
-        		1 => ['pipe', 'wb'], // STDOUT
-        		2 => ['pipe', 'w']  // STDERR
+                0 => ['pipe', 'rb'], // STDIN
+                1 => ['pipe', 'wb'], // STDOUT
+                2 => ['pipe', 'w'],  // STDERR
             ],
             $pipes,
             $this->repository->getGitDir()
         );
 
-
         // // write tree content to mktree's STDIN
         switch ($this->contentMode) {
             case self::CONTENT_STRING:
                 fwrite($pipes[0], $this->content);
+
                 break;
             case self::CONTENT_RESOURCE:
                 stream_copy_to_stream($this->content, $pipes[0]);
+
                 break;
             case self::CONTENT_CALLABLE:
                 $result = call_user_func($this->content, $pipes[0]);
@@ -197,13 +193,13 @@ class File implements HashableInterface
                 if (is_string($result)) {
                     fwrite($pipes[0], $result);
                 }
+
                 break;
             default:
-                throw new \Exception('unhandled content mode: ' . $this->contentMode);
+                throw new \Exception('unhandled content mode: '.$this->contentMode);
         }
 
         fclose($pipes[0]);
-
 
         // check for error on STDERR and turn into exception
         stream_set_blocking($pipes[2], false);
@@ -212,18 +208,16 @@ class File implements HashableInterface
 
         if ($error) {
             $exitCode = proc_close($process);
+
             throw new \Exception("git exited with code $exitCode: $error");
         }
-
 
         // read tree hash from output
         $hash = trim(stream_get_contents($pipes[1]));
         fclose($pipes[1]);
 
-
         // clean up
         proc_close($process);
-
 
         return $hash;
     }

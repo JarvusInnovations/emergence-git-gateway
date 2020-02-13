@@ -2,7 +2,6 @@
 
 namespace Emergence\Git;
 
-
 class Alternates
 {
     protected static $cache;
@@ -24,7 +23,7 @@ class Alternates
     {
         $repositoryPath = $repository->getGitDir();
 
-        file_put_contents("$repositoryPath/objects/info/alternates", implode(PHP_EOL, $paths) . PHP_EOL);
+        file_put_contents("$repositoryPath/objects/info/alternates", implode(PHP_EOL, $paths).PHP_EOL);
 
         static::$cache[$repositoryPath] = $paths;
     }

@@ -2,7 +2,6 @@
 
 namespace Emergence\Git;
 
-
 class TreeRef implements HashableInterface
 {
     use HashableTrait;
@@ -25,7 +24,6 @@ class TreeRef implements HashableInterface
 
         return true;
     }
-
 
     public static function fromRefPath(Repository $repository, $path)
     {

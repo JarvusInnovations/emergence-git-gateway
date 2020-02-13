@@ -2,15 +2,12 @@
 
 namespace Emergence\Git;
 
+use Emergence\SSH\KeyPair;
+use Emergence_FS;
+use Gitonomy\Git\Admin as GitAdmin;
+use Gitonomy\Git\Exception\ProcessException as GitProcessException;
 use Site;
 use SiteFile;
-use Emergence_FS;
-
-use Gitonomy\Git\Admin AS GitAdmin;
-use Emergence\Git\Repository;
-use Gitonomy\Git\Exception\ProcessException AS GitProcessException;
-use Emergence\SSH\KeyPair;
-
 
 class Source
 {
@@ -22,15 +19,21 @@ class Source
     protected $trees;
     protected $deployKey;
 
+    public function __construct($id, $config = [])
+    {
+        $this->id = $id;
+        $this->config = $config;
+    }
+
     public static function getAll()
     {
         static $sources = null;
 
-        if ($sources === null) {
+        if (null === $sources) {
             $sources = \Git::$repositories;
 
             // instantiate sources
-            foreach ($sources AS $id => &$source) {
+            foreach ($sources as $id => &$source) {
                 if (is_array($source)) {
                     $source = new static($id, $source);
                 }
@@ -49,20 +52,13 @@ class Source
 
     public static function getRepositoriesRootPath()
     {
-        $path = Site::$rootPath . '/site-data/git';
+        $path = Site::$rootPath.'/site-data/git';
 
         if (!is_dir($path)) {
             mkdir($path, 0770, true);
         }
 
         return $path;
-    }
-
-
-    public function __construct($id, $config = [])
-    {
-        $this->id = $id;
-        $this->config = $config;
     }
 
     public function getId()
@@ -112,33 +108,33 @@ class Source
 
     public function isInitialized()
     {
-        return (bool)$this->getRepository();
+        return (bool) $this->getRepository();
     }
 
     public function getRepositoryPath()
     {
-        return static::getRepositoriesRootPath() . '/' . $this->id;
+        return static::getRepositoriesRootPath().'/'.$this->id;
     }
 
     public function getPrivateKeyPath()
     {
-        return $this->getRepositoryPath() . '.key';
+        return $this->getRepositoryPath().'.key';
     }
 
     public function getPublicKeyPath()
     {
-        return $this->getRepositoryPath() . '.pub';
+        return $this->getRepositoryPath().'.pub';
     }
 
     public function getDraftCommitMessagePath()
     {
-        return $this->getRepositoryPath() . '/.git/COMMIT_MSG';
+        return $this->getRepositoryPath().'/.git/COMMIT_MSG';
     }
 
     public function getGitEnvironment()
     {
         $env = [
-            'GIT_SSH' => $this->getSshWrapperPath()
+            'GIT_SSH' => $this->getSshWrapperPath(),
         ];
 
         if (!empty($GLOBALS['Session']) && ($User = $GLOBALS['Session']->Person)) {
@@ -156,7 +152,7 @@ class Source
 
             if (is_dir($gitDir)) {
                 $this->repository = new Repository($gitDir, [
-                    'environment_variables' => $this->getGitEnvironment()
+                    'environment_variables' => $this->getGitEnvironment(),
                 ]);
             } else {
                 $this->repository = false;
@@ -185,11 +181,11 @@ class Source
     public function setDeployKey(KeyPair $keyPair)
     {
         $privateKeyPath = $this->getPrivateKeyPath();
-        file_put_contents($privateKeyPath, $keyPair->getPrivateKey() . PHP_EOL);
+        file_put_contents($privateKeyPath, $keyPair->getPrivateKey().PHP_EOL);
         chmod($privateKeyPath, 0600);
 
         $publicKeyPath = $this->getPublicKeyPath();
-        file_put_contents($publicKeyPath, $keyPair->getPublicKey() . PHP_EOL);
+        file_put_contents($publicKeyPath, $keyPair->getPublicKey().PHP_EOL);
         chmod($publicKeyPath, 0600);
 
         $this->deployKey = $keyPair;
@@ -201,7 +197,7 @@ class Source
             return null;
         }
 
-        $wrapperPath = $this->getRepositoryPath() . '.git.sh';
+        $wrapperPath = $this->getRepositoryPath().'.git.sh';
 
         if (!is_file($wrapperPath)) {
             file_put_contents(
@@ -216,11 +212,11 @@ class Source
 
     public function getCloneUrl()
     {
-        return (empty($_SERVER['HTTPS']) ? 'http' : 'https') . '://' . Site::getConfig('primary_hostname') . '/site-admin/sources/' . $this->getId() . '.git';
+        return (empty($_SERVER['HTTPS']) ? 'http' : 'https').'://'.Site::getConfig('primary_hostname').'/site-admin/sources/'.$this->getId().'.git';
     }
 
     /**
-     * Return active or configured remote URL
+     * Return active or configured remote URL.
      */
     public function getRemoteUrl()
     {
@@ -239,7 +235,7 @@ class Source
     {
         $remoteUrl = $this->getRemoteUrl();
 
-        return strpos($remoteUrl, 'https://') === 0 || strpos($remoteUrl, 'http://') === 0 ? 'http' : 'ssh';
+        return 0 === strpos($remoteUrl, 'https://') || 0 === strpos($remoteUrl, 'http://') ? 'http' : 'ssh';
     }
 
     public function getTrees()
@@ -247,7 +243,7 @@ class Source
         if (!$this->trees) {
             $this->trees = [];
 
-            foreach ($this->getConfig('trees') AS $treeKey => $treeValue) {
+            foreach ($this->getConfig('trees') as $treeKey => $treeValue) {
                 $this->trees[] = $this->getTreeOptions($treeKey, $treeValue);
             }
         }
@@ -273,7 +269,7 @@ class Source
                 return null;
             }
 
-            if (strpos($upstreamBranch, 'origin/') === 0) {
+            if (0 === strpos($upstreamBranch, 'origin/')) {
                 $upstreamBranch = substr($upstreamBranch, 7);
             }
         }
@@ -293,7 +289,7 @@ class Source
 
         // create new repo
         $this->repository = GitAdmin::init($this->getRepositoryPath(), false, [
-            'environment_variables' => $this->getGitEnvironment()
+            'environment_variables' => $this->getGitEnvironment(),
         ]);
 
         // add remote
@@ -316,17 +312,17 @@ class Source
         $output = trim($this->getRepository()->run('merge', ['--ff-only', '--no-stat', '@{upstream}']));
         $output = explode(PHP_EOL, $output);
 
-        if ($output[0] == 'Already up-to-date.') {
+        if ('Already up-to-date.' == $output[0]) {
             return false;
         }
 
-        list ($status, $commits) = explode(' ', $output[0]);
+        list($status, $commits) = explode(' ', $output[0]);
 
-        if ($status != 'Updating') {
-            throw new \Exception('Unexpected merge status output: ' . $status);
+        if ('Updating' != $status) {
+            throw new \Exception('Unexpected merge status output: '.$status);
         }
 
-        list ($from, $to) = explode('..', $commits);
+        list($from, $to) = explode('..', $commits);
 
         return ['from' => $from, 'to' => $to];
     }
@@ -336,13 +332,13 @@ class Source
         $output = trim($this->getRepository()->run('push', ['--porcelain', 'origin', 'HEAD']));
         $output = explode(PHP_EOL, $output);
 
-        list ($symbol, $refs, $status) = explode("\t", $output[1]);
+        list($symbol, $refs, $status) = explode("\t", $output[1]);
 
-        if ($status == '[up to date]') {
+        if ('[up to date]' == $status) {
             return false;
         }
 
-        list ($from, $to) = explode('..', $status);
+        list($from, $to) = explode('..', $status);
 
         return ['from' => $from, 'to' => $to];
     }
@@ -364,18 +360,18 @@ class Source
 
         while (($header = array_shift($output)) && ($details = array_shift($output))) {
             // parse header
-            list ($objectType, $hash) = explode(' ', $header);
+            list($objectType, $hash) = explode(' ', $header);
 
-            if ($objectType != 'commit') {
-                throw new \Exception('unexpected object type in rev-list output: ' . $objectType);
+            if ('commit' != $objectType) {
+                throw new \Exception('unexpected object type in rev-list output: '.$objectType);
             }
 
-            $position = $hash[0] == '<' ? 'ahead' : 'behind';
+            $position = '<' == $hash[0] ? 'ahead' : 'behind';
             $hash = substr($hash, 1);
-            ${$position}++;
+            ++${$position};
 
             // parse details
-            list ($authorName, $authorEmail, $timestamp, $subject) = explode("\t", $details);
+            list($authorName, $authorEmail, $timestamp, $subject) = explode("\t", $details);
 
             $commit = [
                 'hash' => $hash,
@@ -383,7 +379,7 @@ class Source
                 'authorName' => $authorName,
                 'authorEmail' => $authorEmail,
                 'timestamp' => $timestamp,
-                'subject' => $subject
+                'subject' => $subject,
             ];
 
             if (!empty($options['groupByPosition'])) {
@@ -396,7 +392,7 @@ class Source
         return [
             'commits' => $commits,
             'ahead' => $ahead,
-            'behind' => $behind
+            'behind' => $behind,
         ];
     }
 
@@ -407,38 +403,38 @@ class Source
 
         $files = [];
 
-        foreach ($output AS $line) {
-            if ($line[0] == '#') {
+        foreach ($output as $line) {
+            if ('#' == $line[0]) {
                 continue; // skip comment lines
             }
 
             if (!preg_match('/^(?<indexStatus>[ MADRCU?!])(?<workTreeStatus>[ MADRCU?!]) (?<path>.+?)( -> (?<renamePath>.+?))?$/', $line, $matches)) {
-                throw new \Exception('Could not parse git status output line: ' . $line);
+                throw new \Exception('Could not parse git status output line: '.$line);
             }
 
             $file = [
                 'path' => $matches['path'],
                 'renamedPath' => $matches['renamePath'] ?: null,
-                'indexStatus' => $matches['indexStatus'] == ' ' ? null : $matches['indexStatus'],
-                'workTreeStatus' => $matches['workTreeStatus'] == ' ' ? null : $matches['workTreeStatus']
+                'indexStatus' => ' ' == $matches['indexStatus'] ? null : $matches['indexStatus'],
+                'workTreeStatus' => ' ' == $matches['workTreeStatus'] ? null : $matches['workTreeStatus'],
             ];
 
             // handle quoted paths
-            if ($file['path'][0] == '"') {
+            if ('"' == $file['path'][0]) {
                 $file['path'] = stripslashes(substr($file['path'], 1, -1));
             }
 
-            if ($file['renamedPath'] && $file['renamedPath'][0] == '"') {
+            if ($file['renamedPath'] && '"' == $file['renamedPath'][0]) {
                 $file['renamedPath'] = stripslashes(substr($file['renamedPath'], 1, -1));
             }
 
             $file['currentPath'] = !empty($file['renamedPath']) ? $file['renamedPath'] : $file['path'];
 
             // decode status
-            $file['tracked'] = $file['indexStatus'] != '?' && $file['workTreeStatus'] != '?';
-            $file['ignored'] = $file['indexStatus'] == '!' && $file['workTreeStatus'] == '!';
-            $file['staged'] = $file['tracked'] && !$file['ignored'] && (bool)$file['indexStatus'];
-            $file['unstaged'] = !$file['ignored'] && (bool)$file['workTreeStatus'];
+            $file['tracked'] = '?' != $file['indexStatus'] && '?' != $file['workTreeStatus'];
+            $file['ignored'] = '!' == $file['indexStatus'] && '!' == $file['workTreeStatus'];
+            $file['staged'] = $file['tracked'] && !$file['ignored'] && (bool) $file['indexStatus'];
+            $file['unstaged'] = !$file['ignored'] && (bool) $file['workTreeStatus'];
 
             if (!empty($options['groupByStatus'])) {
                 if ($file['staged']) {
@@ -455,7 +451,6 @@ class Source
             } else {
                 $files[$file['currentPath']] = $file;
             }
-
         }
 
         return $files;
@@ -465,21 +460,21 @@ class Source
     {
         $results = [];
         $exportOptions = [
-            'localOnly' => true
+            'localOnly' => true,
         ];
 
-        if ($this->getConfig('localOnly') === false) {
+        if (false === $this->getConfig('localOnly')) {
             $exportOptions['localOnly'] = false;
         }
 
         chdir($this->getRepositoryPath());
 
-        foreach ($this->getConfig('trees') AS $treeKey => $treeValue) {
+        foreach ($this->getConfig('trees') as $treeKey => $treeValue) {
             $treeOptions = array_merge(
                 $exportOptions,
                 static::getTreeOptions($treeKey, $treeValue),
                 [
-                    'dataPath' => false
+                    'dataPath' => false,
                 ]
             );
 
@@ -521,11 +516,11 @@ class Source
 
         chdir($this->getRepositoryPath());
 
-        foreach ($this->getConfig('trees') AS $treeKey => $treeValue) {
+        foreach ($this->getConfig('trees') as $treeKey => $treeValue) {
             $treeOptions = array_merge(
                 static::getTreeOptions($treeKey, $treeValue),
                 [
-                    'dataPath' => false
+                    'dataPath' => false,
                 ]
             );
 
@@ -564,12 +559,14 @@ class Source
     public function stage(array $paths)
     {
         $this->getRepository()->run('add', array_merge(['--all'], $paths));
+
         return count($paths);
     }
 
     public function unstage(array $paths)
     {
         $this->getRepository()->run('reset', array_merge(['HEAD'], $paths));
+
         return count($paths);
     }
 
@@ -610,15 +607,14 @@ class Source
 
         if (empty($options['group'])) {
             $options['group'] = 'unstaged';
-        } elseif ($options['group'] != 'staged' && $options['group'] != 'unstaged') {
+        } elseif ('staged' != $options['group'] && 'unstaged' != $options['group']) {
             throw new \Exception('group must be staged or unstaged');
         }
-
 
         // build diff args
         $diffArgs = [];
 
-        if ($options['group'] == 'staged') {
+        if ('staged' == $options['group']) {
             $diffArgs[] = '--cached';
         }
 
@@ -635,12 +631,11 @@ class Source
         $this->getRepository()->run('clean', ['-df']);
     }
 
-
     protected function getTreeOptions($key, $value)
     {
         if (is_string($value)) {
             $treeOptions = [
-                'gitPath' => $value
+                'gitPath' => $value,
             ];
         } else {
             $treeOptions = $value;
@@ -649,7 +644,7 @@ class Source
         $treeOptions['dataPath'] = false;
 
         if (!isset($treeOptions['localOnly'])) {
-            $treeOptions['localOnly'] = $this->getConfig('localOnly') === null ? true : $this->getConfig('localOnly');
+            $treeOptions['localOnly'] = null === $this->getConfig('localOnly') ? true : $this->getConfig('localOnly');
         }
 
         if (is_string($key)) {
@@ -669,7 +664,7 @@ class Source
         unset($treeOptions['path']);
 
         if (is_string($treeOptions['exclude'])) {
-            $treeOptions['exclude'] = array($treeOptions['exclude']);
+            $treeOptions['exclude'] = [$treeOptions['exclude']];
         }
 
         if (!empty($_REQUEST['minId']) && ctype_digit($_REQUEST['minId'])) {

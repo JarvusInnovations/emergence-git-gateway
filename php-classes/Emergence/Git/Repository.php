@@ -2,7 +2,6 @@
 
 namespace Emergence\Git;
 
-
 class Repository extends \Gitonomy\Git\Repository
 {
     public function run($command, $args = [])

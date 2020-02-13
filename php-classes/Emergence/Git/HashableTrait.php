@@ -2,28 +2,22 @@
 
 namespace Emergence\Git;
 
-
 trait HashableTrait
 {
-    abstract public function read($hash);
-    abstract public function write();
-
-
-    private $repository;
-
     protected $dirty;
     protected $writtenHash;
 
+    private $repository;
 
     // magic methods and property accessors
-    function __construct(Repository $repository = null, $hash = null)
+    public function __construct(Repository $repository = null, $hash = null)
     {
         $this->repository = $repository;
         $this->dirty = !$repository || !$hash || !$this->read($hash);
         $this->writtenHash = $this->dirty ? null : $hash;
     }
 
-    function __toString()
+    public function __toString()
     {
         return sprintf(
             '%s(%s, %s%s)',
@@ -33,6 +27,10 @@ trait HashableTrait
             $this->dirty ? '*' : ''
         );
     }
+
+    abstract public function read($hash);
+
+    abstract public function write();
 
     public function getRepository()
     {

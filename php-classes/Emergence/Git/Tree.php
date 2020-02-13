@@ -2,20 +2,16 @@
 
 namespace Emergence\Git;
 
-
 class Tree implements HashableInterface
 {
     use HashableTrait;
-
 
     const REMOTES_MODE_FETCH = 'fetch';
     const REMOTES_MODE_LINK = 'link';
     const TREE_REGEX = '/^(?<mode>[^ ]+) (?<type>[^ ]+) (?<hash>[^\t]+)\t(?<path>.*)/';
 
-
     protected $root = [];
     protected $remotesMode = self::REMOTES_MODE_FETCH;
-
 
     // magic methods and property accessors
     public function getObjectType()
@@ -28,7 +24,6 @@ class Tree implements HashableInterface
         return $this->root;
     }
 
-
     // tree manipulation API
     public function getPath($path)
     {
@@ -36,7 +31,7 @@ class Tree implements HashableInterface
     }
 
     /**
-     * Set the content for a given path
+     * Set the content for a given path.
      *
      * $content may be:
      *
@@ -47,22 +42,21 @@ class Tree implements HashableInterface
     public function setPath($path, $content)
     {
         $this->dirty = true;
-        $node =& $this->getNodeRef($path);
+        $node = &$this->getNodeRef($path);
         $node = $content;
     }
 
     public function deletePath($path)
     {
         $this->dirty = true;
-        $node =& $this->getNodeRef($path);
+        $node = &$this->getNodeRef($path);
         $node = null;
     }
 
     public function hasPath($path)
     {
-        return (boolean)$this->getNodeRef($path);
+        return (bool) $this->getNodeRef($path);
     }
-
 
     // tree lifecycle API
     public function write()
@@ -90,32 +84,32 @@ class Tree implements HashableInterface
         $output = sprintf(
             "\n\ndumping tree %s#%s\n\n",
             $this->getRepository()->getGitDir(),
-            $this->getWrittenHash() ?: ($this->getReadHash() . '*')
+            $this->getWrittenHash() ?: ($this->getReadHash().'*')
         );
 
         $dumpNodes = function ($nodes, $indent = 1) use (&$dumpNodes, &$output, $contentColumn) {
-            foreach ($nodes AS $path => $node) {
+            foreach ($nodes as $path => $node) {
                 if (
                     is_array($node)
                     || is_string($node)
                     || $node instanceof static
-                    || ( $node instanceof HashableInterface && $node->getObjectType() == 'tree' )
+                    || ($node instanceof HashableInterface && 'tree' == $node->getObjectType())
                 ) {
                     $path .= '/';
                 }
 
                 $output .= str_repeat('   ', $indent);
                 $output .= $path;
-                $output .= str_repeat(is_array($node) ? ' ' : '-', $contentColumn - $indent*3 - strlen($path));
+                $output .= str_repeat(is_array($node) ? ' ' : '-', $contentColumn - $indent * 3 - strlen($path));
 
                 if (is_array($node)) {
                     $output .= "\n";
                     $dumpNodes($node, $indent + 1);
                 } else {
                     if ($node instanceof self || $node instanceof File) {
-                        $node = (string)$node;
+                        $node = (string) $node;
                     } elseif (is_object($node)) {
-                        $node = get_class($node)."($node".( $node instanceof HashableInterface ? ", {$node->getRepository()->getGitDir()}, {$node->getObjectType()}, {$node->getHash()}" : '' ).')';
+                        $node = get_class($node)."($node".($node instanceof HashableInterface ? ", {$node->getRepository()->getGitDir()}, {$node->getObjectType()}, {$node->getHash()}" : '').')';
                     }
 
                     $output .= "$node\n";
@@ -130,7 +124,7 @@ class Tree implements HashableInterface
         if ($return) {
             return $output;
         } else {
-            print $output;
+            echo $output;
         }
     }
 
@@ -138,10 +132,9 @@ class Tree implements HashableInterface
     {
         return trim($this->getRepository()->run('commit-tree', [
             '-m', $message,
-            $this->write()
+            $this->write(),
         ]));
     }
-
 
     // internal library
     protected function &getNodeRef($path)
@@ -150,7 +143,7 @@ class Tree implements HashableInterface
         $tree = &$this->root;
 
         while (($name = array_shift($path)) && count($path)) {
-            if ($name == '.') {
+            if ('.' == $name) {
                 continue;
             }
 
@@ -168,8 +161,7 @@ class Tree implements HashableInterface
     {
         // build tree file content
         $treeContent = '';
-        foreach ($tree AS $name => &$content) {
-
+        foreach ($tree as $name => &$content) {
             if (is_string($content)) {
                 $type = 'tree';
                 $hash = $content;
@@ -181,46 +173,43 @@ class Tree implements HashableInterface
                 $hash = $content->getHash();
 
                 if ($this->getRepository()->getGitDir() != $content->getRepository()->getGitDir()) {
-                    if ($this->remotesMode == self::REMOTES_MODE_FETCH) {
+                    if (self::REMOTES_MODE_FETCH == $this->remotesMode) {
                         static::copyObject($content->getRepository(), $this->getRepository(), $type, $hash);
-                    } elseif ($this->remotesMode == self::REMOTES_MODE_LINK) {
+                    } elseif (self::REMOTES_MODE_LINK == $this->remotesMode) {
                         Alternates::addPath($this->getRepository(), $content->getRepository());
                     } else {
                         throw new \Exception('unhandlable remotes mode: '.$this->remotesMode);
                     }
                 }
 
-                if ($type == 'tree') {
+                if ('tree' == $type) {
                     $content = $hash;
                 }
             } else {
-                throw new \Exception('unhandlable content for ' . $name);
+                throw new \Exception('unhandlable content for '.$name);
             }
 
-            $mode = $type == 'blob' ? '100644' : '040000';
+            $mode = 'blob' == $type ? '100644' : '040000';
 
             $treeContent .= "$mode $type $hash\t$name\n";
         }
 
-
         // open git-mktree process
         $pipes = [];
         $process = proc_open(
-            static::getGitExecutablePath() . ' mktree',
+            static::getGitExecutablePath().' mktree',
             [
-        		0 => ['pipe', 'rb'], // STDIN
-        		1 => ['pipe', 'wb'], // STDOUT
-        		2 => ['pipe', 'w']  // STDERR
+                0 => ['pipe', 'rb'], // STDIN
+                1 => ['pipe', 'wb'], // STDOUT
+                2 => ['pipe', 'w'],  // STDERR
             ],
             $pipes,
             $this->getRepository()->getGitDir()
         );
 
-
         // write tree content to mktree's STDIN
         fwrite($pipes[0], $treeContent);
         fclose($pipes[0]);
-
 
         // check for error on STDERR and turn into exception
         stream_set_blocking($pipes[2], false);
@@ -229,18 +218,16 @@ class Tree implements HashableInterface
 
         if ($error) {
             $exitCode = proc_close($process);
+
             throw new \Exception("git exited with code $exitCode: $error");
         }
-
 
         // read tree hash from output
         $hash = trim(stream_get_contents($pipes[1]));
         fclose($pipes[1]);
 
-
         // clean up
         proc_close($process);
-
 
         return $hash;
     }
@@ -250,15 +237,14 @@ class Tree implements HashableInterface
         // open git-ls-tree process
         $pipes = [];
         $process = proc_open(
-            static::getGitExecutablePath() . ' ls-tree ' . $hash,
+            static::getGitExecutablePath().' ls-tree '.$hash,
             [
-        		1 => ['pipe', 'wb'], // STDOUT
-        		2 => ['pipe', 'w']  // STDERR
+                1 => ['pipe', 'wb'], // STDOUT
+                2 => ['pipe', 'w'],  // STDERR
             ],
             $pipes,
             $this->getRepository()->getGitDir()
         );
-
 
         // check for error on STDERR and turn into exception
         stream_set_blocking($pipes[2], false);
@@ -267,9 +253,9 @@ class Tree implements HashableInterface
 
         if ($error) {
             $exitCode = proc_close($process);
+
             throw new \Exception("git exited with code $exitCode: $error");
         }
-
 
         // read tree hash from output
         while ($line = fgets($pipes[1])) {
@@ -277,19 +263,17 @@ class Tree implements HashableInterface
                 throw new \Exception("invalid tree line: $line");
             }
 
-            $tree[$matches['path']] = $matches['type'] == 'tree' ? $matches['hash'] : File::fromHash($this->getRepository(), $matches['hash']);
+            $tree[$matches['path']] = 'tree' == $matches['type'] ? $matches['hash'] : File::fromHash($this->getRepository(), $matches['hash']);
         }
 
         fclose($pipes[1]);
 
-
         // clean up
         $exitCode = proc_close($process);
 
-        if ($exitCode !== 0) {
-            throw new \Exception('git ls-tree failed with exit code ' . $exitCode);
+        if (0 !== $exitCode) {
+            throw new \Exception('git ls-tree failed with exit code '.$exitCode);
         }
-
 
         return $tree;
     }
@@ -317,7 +301,6 @@ class Tree implements HashableInterface
         $gitFrom = "$git --git-dir='{$from->getGitDir()}'";
         $gitTo = "$git --git-dir='{$to->getGitDir()}'";
 
-
         // copy the named object
         //printf("Copying %s %s from %s to %s\n", $type, $hash, $from->getGitDir(), $to->getGitDir());
         $cmd = "$gitFrom cat-file $type $hash | $gitTo hash-object -w -t $type --stdin";
@@ -326,20 +309,18 @@ class Tree implements HashableInterface
             throw new Exception("Failed to copy object: $cmd");
         }
 
-
         // iterate over children if it's a tree
-        if ($type == 'tree') {
+        if ('tree' == $type) {
             // open git-ls-tree process
             $pipes = [];
             $process = proc_open(
                 "$gitFrom ls-tree $hash",
                 [
-            		1 => ['pipe', 'wb'], // STDOUT
-            		2 => ['pipe', 'w']  // STDERR
+                    1 => ['pipe', 'wb'], // STDOUT
+                    2 => ['pipe', 'w'],  // STDERR
                 ],
                 $pipes
             );
-
 
             // check for error on STDERR and turn into exception
             stream_set_blocking($pipes[2], false);
@@ -348,9 +329,9 @@ class Tree implements HashableInterface
 
             if ($error) {
                 $exitCode = proc_close($process);
+
                 throw new \Exception("git exited with code $exitCode: $error");
             }
-
 
             // read tree hash from output
             while ($line = fgets($pipes[1])) {
@@ -363,15 +344,13 @@ class Tree implements HashableInterface
 
             fclose($pipes[1]);
 
-
             // clean up
             $exitCode = proc_close($process);
 
-            if ($exitCode !== 0) {
-                throw new \Exception('git ls-tree failed with exit code ' . $exitCode);
+            if (0 !== $exitCode) {
+                throw new \Exception('git ls-tree failed with exit code '.$exitCode);
             }
         }
-
 
         return true;
     }

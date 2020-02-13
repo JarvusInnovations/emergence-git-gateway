@@ -2,7 +2,6 @@
 
 namespace Emergence\Git;
 
-
 trait TreePathTrait
 {
     protected $repository;
@@ -12,7 +11,6 @@ trait TreePathTrait
     protected $hash;
     protected $objectType;
 
-
     public function __construct(Repository $repository, $ref, $path = '')
     {
         $this->repository = $repository;
@@ -20,7 +18,7 @@ trait TreePathTrait
         $this->path = $path;
     }
 
-    function __toString()
+    public function __toString()
     {
         return sprintf(
             '%s(%s, %s, %s)',

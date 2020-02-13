@@ -2,11 +2,10 @@
 
 namespace Emergence\Git;
 
-
 class TreeUtil
 {
     /**
-     * TODO: use yield and read one line at a time from stream
+     * TODO: use yield and read one line at a time from stream.
      */
     public static function getPaths(Repository $repository, $tree, $options = [])
     {
@@ -25,10 +24,11 @@ class TreeUtil
         $command .= " --with-tree=$tree";
 
         if (!empty($options['patterns'])) {
-            $command .= ' \'' . implode('\' \'', (array)$options['patterns']) . '\'';
+            $command .= ' \''.implode('\' \'', (array) $options['patterns']).'\'';
         }
 
         $result = trim(shell_exec($command));
+
         return $result ? explode(PHP_EOL, $result) : [];
     }
 
@@ -41,7 +41,6 @@ class TreeUtil
             $tree = $tree->getHash();
         }
 
-
         static $cache = [];
 
         $treeCache = &$cache[$tree];
@@ -52,9 +51,8 @@ class TreeUtil
 
         $pathCache = &$treeCache[$path];
 
-
         if (!isset($pathCache)) {
-            if ($path == '') {
+            if ('' == $path) {
                 $pathCache = $tree;
             } else {
                 try {
@@ -64,7 +62,6 @@ class TreeUtil
                 }
             }
         }
-
 
         return $pathCache;
     }
@@ -88,18 +85,16 @@ class TreeUtil
             $tree = $tree->getHash();
         }
 
-
         $pipes = [];
         $process = proc_open(
             exec('which git')." cat-file -p $tree:$path",
             [
-        		1 => ['pipe', 'wb'], // STDOUT
-        		2 => ['pipe', 'w']  // STDERR
+                1 => ['pipe', 'wb'], // STDOUT
+                2 => ['pipe', 'w'],  // STDERR
             ],
             $pipes,
             $repository->getGitDir()
         );
-
 
         // check for error on STDERR and turn into exception
         stream_set_blocking($pipes[2], false);
@@ -109,9 +104,9 @@ class TreeUtil
         if ($error) {
             $exitCode = proc_close($process);
             fclose($pipes[1]);
+
             throw new \Exception("git exited with code $exitCode: $error");
         }
-
 
         return [$pipes[1], $process];
     }
@@ -124,15 +119,13 @@ class TreeUtil
 
         $refPath = "$tree:$path";
 
-
         if ($path) {
             $objectType = trim($repository->run('cat-file', ['-t', $refPath]));
         } else {
             $objectType = $this->getObjectType();
         }
 
-
-        if ($objectType == 'tree') {
+        if ('tree' == $objectType) {
             if (!is_dir($outputPath)) {
                 mkdir($outputPath, 0777, true);
             }
