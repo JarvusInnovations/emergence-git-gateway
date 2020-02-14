@@ -1,5 +1,7 @@
 # emergence-git-gateway
 
+**DEPRECATED:** This code has been merged into [`skeleton-v1`](https://github.com/JarvusInnovations/emergence-skeleton) and [`layer-vfs`](https://github.com/EmergencePlatform/layer-vfs)
+
 ## Roadmap
 
 ### Short-term
